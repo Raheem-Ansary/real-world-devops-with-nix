@@ -1,42 +1,52 @@
-# Real world DevOps with Nix
+# Real‑World DevOps with Nix (Portfolio Edition)
 
-This example project is meant to demonstrate the power of [Nix] in a DevOps
-context. You can see this repo in action in my talk [Real world DevOps with
-Nix][video], which was part of the [Summer of Nix][son] video series in 2022.
+A clean, production‑style showcase that demonstrates reproducible developer environments, containerization, Kubernetes deployment, Terraform IaC, and CI with GitHub Actions — centered around a tiny Go HTTP service.
 
-## Moving parts
+**Tech Stack**
+- Go, Nix flakes, Docker, Kubernetes, Terraform, GitHub Actions
 
-* A very simple "TODOs" web service written in [Go] in
-  [`cmd/todos/main.go`](./cmd/todos/main.go). This service is built to be
-  deployed on a [Kubernetes] cluster running on [Digital Ocean][do].
-* That cluster is stood up using a [Terraform] configuration in
-  [`main.tf`](./main.tf) and [`terraform.tfvars`](./terraform.tfvars).
-* The Kubernetes configuration in [`k8s/deployment.yaml`](./k8s/deployment.yaml)
-  defines the Kubernetes [Deployment] for the service.
-* The [GitHub Actions][actions] pipeline
-  * Builds a [Docker] image for the TODOs service using [Nix]
-  * Pushes the image to [Docker Hub][hub]
-  * Updates the existing [Deployment] to use the new image
-  * Restarts the [Deployment] to complete the upgrade
+**Features**
+- Reproducible dev environment via `flake.nix` (multi‑platform)
+- Containerized Go service (`cmd/todos`) with multi‑stage Dockerfile
+- Kubernetes manifests (Deployment/Service/Ingress) ready for cluster deploys
+- CI pipeline that tests Go, builds a Docker image via Nix, and optionally pushes
+- Minimal Terraform example to illustrate IaC patterns
 
-Some other things to note:
+## Quickstart
+- Nix dev shell: `nix develop`
+- Build Go: `make build`
+- Docker (classic): `make docker-build` (edit `<YOUR_DOCKER_USERNAME>`)
+- Docker (via Nix): `make nix-docker`
+- Apply K8s: `make k8s-apply`
+- Delete K8s: `make k8s-delete`
 
-* The Kubernetes configuration for the Digital Ocean cluster, named
-  `real-world-devops-with-nix`, is provided under the `KUBE_CONFIG` environment
-  variable in the CI pipeline. To get that configuration as a base64 string:
+Service runs on port 8080, with `GET /health` and `GET /todos`.
 
-  ```shell
-  doctl kubernetes cluster kubeconfig show real-world-devops-with-nix | base64
-  ```
+## Kubernetes
+- Deployment: `k8s/deployment.yaml` (name: `todos-api`, replicas: 2)
+- Service: `k8s/service.yaml` (ClusterIP 80 -> 8080)
+- Ingress: `k8s/ingress.yaml` (host `todos.local` -> service)
 
-[actions]: https://github.com/features/actions
-[deployment]: https://kubernetes.io/docs/concepts/workloads/controllers/deployment
-[docker]: https://docker.com
-[do]: https://digitalocean.com
-[go]: https://golang.org
-[hub]: https://hub.docker.com
-[kubernetes]: https://kubernetes.io
-[nix]: https://nixos.org
-[son]: https://www.youtube.com/playlist?list=PLt4-_lkyRrOMWyp5G-m_d1wtTcbBaOxZk
-[terraform]: https://terraform.io
-[video]: https://www.youtube.com/watch?v=LjyQ7baj-KM&t=2809s
+Default container image is `your-docker-username/todos:latest`. Override via CI, `kubectl set image`, or your preferred GitOps tool.
+
+## CI (GitHub Actions)
+- Workflow: `.github/workflows/ci.yml`
+- Installs Nix, runs Go tests in dev shell, builds Docker image via Nix
+- If `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are configured as repo secrets, the built image is pushed automatically
+
+## Terraform
+- Minimal, cloud‑agnostic example in `main.tf` using the `random` provider
+- Demonstrates providers/outputs without requiring credentials
+- Validates with `terraform validate`
+
+## Nix Flake
+- Inputs: `nixpkgs` (unstable), `flake-utils`
+- DevShell includes: go, docker, docker-compose, kubectl, helm, kustomize, terraform, tflint, doctl, jq, git, gnumake
+- Packages:
+  - `packages.todos`: Go binary built with `buildGoModule`
+  - `packages.default`: alias to `todos`
+  - `packages.dockerImage` (Linux): minimal image with only the compiled binary
+
+## Notes
+- This repository is designed as a learning/portfolio asset for reviewers and recruiters. The application logic is intentionally simple; the focus is high‑quality, reproducible DevOps workflows.
+- Linux is assumed for most examples; macOS is supported via the flake dev shell.

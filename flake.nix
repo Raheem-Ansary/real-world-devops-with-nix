@@ -1,66 +1,91 @@
 {
-  description = "Real world DevOps with Nix";
+  description = "Real world DevOps with Nix - enhanced, multi-platform showcase";
 
-  inputs.nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+  };
 
-  outputs = inputs:
-    let
-      name = "todos";
-      supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-      forEachSupportedSystem = f: inputs.nixpkgs.lib.genAttrs supportedSystems (system: f {
-        pkgs = import inputs.nixpkgs {
+  outputs = { self, nixpkgs, flake-utils, ... }:
+    flake-utils.lib.eachSystem [
+      "x86_64-linux"
+      "aarch64-linux"
+      "x86_64-darwin"
+      "aarch64-darwin"
+    ] (system:
+      let
+        pkgs = import nixpkgs {
           inherit system;
           config.allowUnfree = true;
         };
-      });
-    in
-    {
-      devShells = forEachSupportedSystem ({ pkgs }: {
-        default = pkgs.mkShell {
-          buildInputs = with pkgs;
-            [
-              # Platform-non-specific Go (for local development)
-              go
 
-              # Docker CLI
-              docker
-
-              # Kubernetes
-              kubectl
-              kubectx
-
-              # Terraform
-              terraform
-              tflint
-
-              # Digital Ocean
-              doctl
-            ];
-        };
-      });
-
-      packages = forEachSupportedSystem ({ pkgs }: rec {
-        default = todos;
+        isLinux = pkgs.stdenv.isLinux;
 
         todos = pkgs.buildGoModule {
-          name = "todos";
+          pname = "todos";
+          version = "1.0.0";
+
           src = ./.;
           subPackages = [ "cmd/todos" ];
+
           vendorHash = "sha256-fwJTg/HqDAI12mF1u/BlnG52yaAlaIMzsILDDZuETrI=";
         };
-      });
+      in
+      {
+        ############################
+        # Dev shell (per system)
+        ############################
+        devShells.default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            go
 
+            docker
+            docker-compose
 
-      dockerImages = forEachSupportedSystem ({ pkgs }: {
-        # A layered image means better caching and less bandwidth
-        default = pkgs.dockerTools.buildLayeredImage {
-          name = "lucperkins/todos";
-          config = {
-            Cmd = [ "${inputs.self.packages.x86_64-linux.todos}/bin/todos" ];
-            ExposedPorts."8080/tcp" = { };
-          };
-          maxLayers = 120;
+            kubectl
+            kubectx
+            kustomize
+            helm
+
+            terraform
+            tflint
+
+            doctl
+            jq
+            git
+            gnumake
+          ];
+
+          shellHook = ''
+            echo "[${system}] DevShell ready: Go + Docker + K8s + Terraform + Nix"
+          '';
         };
-      });
-    };
+
+        ############################
+        # Packages (per system)
+        ############################
+        packages =
+          {
+            inherit todos;
+            default = todos;
+          }
+          // (if isLinux then {
+            dockerImage = pkgs.dockerTools.buildImage {
+              name = "todos";
+              tag = "latest";
+
+              # Include only the compiled todos binary in /bin
+              copyToRoot = pkgs.buildEnv {
+                name = "todos-root";
+                paths = [ todos ];
+              };
+
+              config = {
+                Cmd = [ "/bin/todos" ];
+                ExposedPorts."8080/tcp" = {};
+              };
+            };
+          } else { });
+      }
+    );
 }

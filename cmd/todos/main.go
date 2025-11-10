@@ -1,9 +1,9 @@
 package main
 
 import (
-	"net/http"
+    "net/http"
 
-	"github.com/gin-gonic/gin"
+    "github.com/gin-gonic/gin"
 )
 
 type todo struct {
@@ -21,9 +21,17 @@ func main() {
 		},
 	}
 
-	r := gin.Default()
-	r.GET("/todos", func(c *gin.Context) {
-		c.JSON(http.StatusOK, todos)
-	})
-	r.Run()
+    r := gin.Default()
+
+    // Simple health endpoint for readiness/liveness probes
+    r.GET("/health", func(c *gin.Context) {
+        c.String(http.StatusOK, "ok")
+    })
+
+    r.GET("/todos", func(c *gin.Context) {
+        c.JSON(http.StatusOK, todos)
+    })
+
+    // Bind explicitly to port 8080
+    _ = r.Run(":8080")
 }
